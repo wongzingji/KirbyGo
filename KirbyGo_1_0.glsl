@@ -1,3 +1,12 @@
+// parmas
+struct Material
+{
+    vec3 	diffuseAlbedo;
+    vec3 	specularAlbedo;
+    float 	specularPower;
+};
+Material stem_mat = Material(vec3(0.8196, 0.3922, 0.2078), vec3(0.3), 8.0);
+
 //utils
 // Smooth Min
 float smin( float a, float b, float k )
@@ -55,6 +64,243 @@ vec2 sdStick(vec3 p, vec3 a, vec3 b, float r1, float r2)
 	return vec2( length( pa - ba*h ) - mix(r1,r2,h*h*(3.0-2.0*h)), h );
 }
 
+vec2 sdSegment( in vec3 p, vec3 a, vec3 b )
+{
+	vec3 pa = p - a, ba = b - a;
+	float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+	return vec2( length( pa - ba*h ), h );
+}
+
+////////////////////////////////
+// noise
+vec3 mod289(vec3 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 mod289(vec4 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 permute(vec4 x) {
+     return mod289(((x*34.0)+10.0)*x);
+}
+// 2D
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+
+vec4 taylorInvSqrt(vec4 r)
+{
+  return 1.79284291400159 - 0.85373472095314 * r;
+}
+
+float snoise(vec3 v)
+{
+  const vec2  C = vec2(1.0/6.0,1.0/3.0);
+  const vec4  D = vec4(0.211324865405187,
+                        // (3.0-sqrt(3.0))/6.0
+                        0.366025403784439,
+                        // 0.5*(sqrt(3.0)-1.0)
+                        -0.577350269189626,
+                        // -1.0 + 2.0 * C.x
+                        0.024390243902439);
+                        // 1.0 / 41.0
+
+// First corner
+  vec3 i  = floor(v + dot(v, C.yyy) );
+  vec3 x0 =   v - i + dot(i, C.xxx) ;
+
+// Other corners
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min( g.xyz, l.zxy );
+  vec3 i2 = max( g.xyz, l.zxy );
+
+  //   x0 = x0 - 0.0 + 0.0 * C.xxx;
+  //   x1 = x0 - i1  + 1.0 * C.xxx;
+  //   x2 = x0 - i2  + 2.0 * C.xxx;
+  //   x3 = x0 - 1.0 + 3.0 * C.xxx;
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy; // 2.0*C.x = 1/3 = C.y
+  vec3 x3 = x0 - D.yyy;      // -1.0+3.0*C.x = -0.5 = -D.y
+
+// Permutations
+  i = mod289(i); 
+  vec4 p = permute( permute( permute( 
+             i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+           + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+           + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+
+// Gradients: 7x7 points over a square, mapped onto an octahedron.
+// The ring size 17*17 = 289 is close to a multiple of 49 (49*6 = 294)
+  float n_ = 0.142857142857; // 1.0/7.0
+  vec3  ns = n_ * D.wyz - D.xzx;
+
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);  //  mod(p,7*7)
+
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_ );    // mod(j,N)
+
+  vec4 x = x_ *ns.x + ns.yyyy;
+  vec4 y = y_ *ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+
+  vec4 b0 = vec4( x.xy, y.xy );
+  vec4 b1 = vec4( x.zw, y.zw );
+
+  //vec4 s0 = vec4(lessThan(b0,0.0))*2.0 - 1.0;
+  //vec4 s1 = vec4(lessThan(b1,0.0))*2.0 - 1.0;
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+
+  vec3 p0 = vec3(a0.xy,h.x);
+  vec3 p1 = vec3(a0.zw,h.y);
+  vec3 p2 = vec3(a1.xy,h.z);
+  vec3 p3 = vec3(a1.zw,h.w);
+
+//Normalise gradients
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+  p0 *= norm.x;
+  p1 *= norm.y;
+  p2 *= norm.z;
+  p3 *= norm.w;
+
+// Mix final noise value
+  vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 130.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+                                dot(p2,x2), dot(p3,x3) ) );
+}
+//----
+float snoise(vec2 v) {
+    const vec4 C = vec4(0.211324865405187,  // (3.0-sqrt(3.0))/6.0
+                        0.366025403784439,  // 0.5*(sqrt(3.0)-1.0)
+                        -0.577350269189626,  // -1.0 + 2.0 * C.x
+                        0.024390243902439); // 1.0 / 41.0
+    vec2 i  = floor(v + dot(v, C.yy) );
+    vec2 x0 = v -   i + dot(i, C.xx);
+    vec2 i1;
+    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod289(i); // Avoid truncation effects in permutation
+    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+        + i.x + vec3(0.0, i1.x, 1.0 ));
+
+    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+    m = m*m ;
+    m = m*m ;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+    vec3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+
+float random (in vec2 _st) {
+    return fract(sin(dot(_st.xy,vec2(12.9898,78.633)))*43758.5453123);
+}
+
+float noise (in vec2 _st) {
+    vec2 i = floor(_st);
+    vec2 f = fract(_st);
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+
+    vec2 u = f * f * f * f *(3.0 - 2.0 * f);  //+2.0*sin(u_time/10.0)
+
+    return mix(a, b, u.x) +
+            (c - a)* u.y * (1.0 - u.x) +
+            (d - b) * u.x * u.y;
+}
+
+float fbm ( in vec2 _st) {
+    float v = 0.0;
+    float a = 0.5;
+    vec2 shift = vec2(100.0);
+    mat2 rot = mat2(cos(0.5), sin(0.5),
+                   -sin(0.5), cos(0.5));
+  
+    for (int i = 0; i < 3; ++i) {
+        v += a * noise(_st);
+        _st = rot * _st * (4.5) + shift;
+        a *= 0.45;
+    }
+    return v;
+}
+
+////////////////////////////////
+// add elements
+// mushroom
+float head( in vec3 p )
+{
+    // top
+    float d3 = sdEllipsoid( p+vec3(0.0,2.1,0.0), vec3(0.35,0.2,0.35) );
+    d3 -= 0.03*(0.5+0.5*sin(11.0*p.z)*cos(9.0*p.x));
+    //d3 -= 0.05*exp(-128.0*dot(p.xz,p.xz));
+    
+    // interior
+    float d4 = sdSphere( p+vec3(0.0,2.3,0.0), 0.35 );
+	d4 += 0.005*sin( 20.0*atan(p.x,p.z) );
+
+    // substract
+    return smax( d3, -d4, 0.02 );
+    //return d3;
+}
+
+vec2 mapMushroom(vec3 p)
+{
+    // objID: 7.0, 8.0
+    // stem
+    float h = clamp(p.y+1.2,0.0,1.0);
+    vec3 o = 0.12 * sin( h*3.0 + vec3(0.0,2.0,4.0) );
+    o = o*4.0*h*(1.0-h) * h;
+    
+    float c = cos(0.6*p.x+p.y+0.5);
+    float s = sin(0.6*p.x+p.y+0.5);
+    mat2 rot = mat2(c,s,-s,c);
+    vec3 q = p+vec3(0.0,1.9,0.0)-o*vec3(1.0,0.0,1.0);
+    q.xz = rot*q.xz;
+
+    float d1 = sdSegment( q, vec3(0.0,0.0,0.0), vec3(-0.1,1.2,0.0) ).x;
+    d1 -= 0.04;
+    d1 -= 0.1*exp(-16.0*h);
+    vec2 res = vec2(d1, 8.0);
+
+    // head
+    float d2 = head( p + vec3(0.06,-1.5,0.0));
+    vec2 res2 = vec2(d2, 7.0);
+
+    // mix head and stem
+    //d1 = smin( d1, d3, 0.2 );
+    //d1 *= 0.75; 
+    res = opU(res2, res);
+        
+    return res;
+}
+
+vec2 mapTerrian(in vec3 pos, float atime)
+{
+    float floorHeight = -0.1 //基础高度
+                                     - 0.05*(sin(pos.x*2.0)+sin(pos.z*2.0)); //地形
+    float t5 = fract(atime+0.05);
+    //float k = length(pos.xz-cen.xz);
+    float k = length(pos.xz);
+    float t2 = t5*15.0-6.2831 - k*3.0;
+    floorHeight -= 0.1*exp(-k*k)*sin(t2)*exp(-max(t2,0.0)/2.0)*smoothstep(0.0,0.01,t5);
+    float dFloor = pos.y - floorHeight;
+
+    return vec2(floorHeight,dFloor);
+}
 
 ////////////////////////////////
 //绘制物体
@@ -151,15 +397,9 @@ vec2 map( in vec3 pos, float atime )
     
     
     // ground
-    
-    float floorHeight = -0.1 //基础高度
-                                     - 0.05*(sin(pos.x*2.0)+sin(pos.z*2.0)); //地形
-    float t5 = fract(atime+0.05);
-    float k = length(pos.xz-cen.xz);
-    float t2 = t5*15.0-6.2831 - k*3.0;
-    floorHeight -= 0.1*exp(-k*k)*sin(t2)*exp(-max(t2,0.0)/2.0)*smoothstep(0.0,0.01,t5);
-     float dFloor = pos.y - floorHeight;
-    
+    vec2 floorData = mapTerrian(pos, atime);
+    float floorHeight = floorData.x;
+    float dFloor = floorData.y;
     
     // bubbles
     
@@ -206,9 +446,14 @@ vec2 map( in vec3 pos, float atime )
     float dCandy = sdSphere( vp, 0.35*ra )/fs;
     vec2 candyObj = vec2(dCandy, 6.0);
     
-    res = opU(res, candyObj);
+    res = opU(res, candyObj);   
+
+    // mushroom
+    vec3 q = vec3(mod(abs(pos.x+0.1),12.0)-2.0,pos.y-1.05,mod(pos.z+1.0,5.0)-2.0);
+    vec2 mushroomObj = mapMushroom(q);
+    res = opU(res, mushroomObj);
     }
-    
+
     return res;
 }
 
@@ -271,6 +516,26 @@ float calcOcclusion( in vec3 pos, in vec3 nor, float time )
     return clamp( 1.0 - 2.0*occ, 0.0, 1.0 );
 }
 
+vec3 calcTransmittance(vec3 ro, vec3 rd, float tmin, float tmax, float atten, float time)
+{
+    const int MAX_DEPTH = 4;
+    float hitPoints[MAX_DEPTH];
+    int depth = 0;
+    
+    for (float t = tmin; t < tmax;)
+    {
+        float h = abs(map(ro + t * rd, time).x);
+        if (h < 1e-5) { hitPoints[depth++] = t; t += 0.01; };
+        if (depth >= MAX_DEPTH) break;
+        t += h;
+    }
+    
+    float thickness = 0.0;
+    for (int i = 0; i < depth - 1; i += 2) thickness += hitPoints[i+1] - hitPoints[i];
+    
+    return vec3(1.0) * exp(-atten * thickness * thickness);
+}
+
 //颜色渲染
 vec3 render( in vec3 ro, in vec3 rd, float time )
 { 
@@ -289,7 +554,44 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
 		col = vec3(0.2);
         float ks = 1.0;
 
-        if (res.y > 5.5)  //candy
+        if (res.y > 7.5) // mushroom stem
+        {
+            col = vec3(0.2588, 0.1098, 0.0392);
+        }
+        else if (res.y > 6.5)
+        {
+            col = vec3(0.76,0.26,0.3); 
+             vec2 id = floor(5.0*pos.xz+0.5);
+		     col += 0.036*cos((id.x*11.1+id.y*37.341) + vec3(0.0,1.0,2.0) );
+             col *= 3.0*noise(pos.xy);
+
+             vec2 q = vec2(0.);
+            q.x = fbm( pos.xy);
+            q.y = fbm( pos.xy + vec2(1.0));
+
+            vec2 r = vec2(0.);
+            r.x = fbm( pos.xy + 1.0*q + vec2(1.7,9.2));
+            r.y = fbm( pos.xy + 1.0*q + vec2(8.3,2.8));
+
+            float f = fbm(pos.xy+r);
+            vec2 g = vec2(f);
+            
+            vec3 color = vec3(0.0);
+            color = mix(vec3(0.681,0.858,0.920),
+                        vec3(0.967,0.156,0.573),
+                        clamp((f*f)*4.312,0.992,1.0));
+
+            color = mix(color,
+                        vec3(0.300,0.034,0.134),
+                        clamp(length(q),0.0,1.0));
+
+            color = mix(color,
+                        vec3(1.000,0.700,0.315),
+                        clamp(length(r.x),0.0,1.0));
+            
+            col *= vec3((f*f*f+0.7*f*f*f*f+3.068*f*f)*color*5.0);
+        }
+        else if (res.y > 5.5)  //candy
         {
             col = vec3(0.14,0.048,0.0); 
              vec2 id = floor(5.0*pos.xz+0.5);
@@ -298,7 +600,7 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
         }
         else if (res.y > 4.5)
         {
-            col = vec3(1.0);
+            col = vec3(0.14,0.048,0.0); 
         }
         else if( res.y>3.5 ) // eye
         {  // todo: 渐变色:需要返回相对坐标不能使用绝对坐标
@@ -346,9 +648,21 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
         lin += sun_dif*vec3(8.10,6.00,4.20)*sun_sha;
         lin += sky_dif*vec3(0.50,0.70,1.00);
         lin += bou_dif*vec3(0.40,1.00,0.40);
-		col = col*lin;
+        
+        col = col*lin;
 		col += sun_spe*vec3(8.10,6.00,4.20)*sun_sha;
         
+        if (res.y > 7.5)
+        {
+            vec3 lightColor = vec3(1.0);
+            
+            float t = clamp(0.5, 0.2, 1.0);
+            vec3 light = t * lightColor * calcTransmittance(pos+nor*vec3(0.01), sun_lig, 0.01, 10.0, 2.0, time);
+            light += (1.0 - t) * calcTransmittance(pos+nor*vec3(0.01), rd, 0.01, 10.0, 0.5, time);
+            col =  light * stem_mat.diffuseAlbedo;
+            col += light * stem_mat.specularAlbedo * pow(max(0.0, dot(reflect(sun_lig,nor),rd)), 4.0);
+        }
+
         col = mix( col, vec3(0.5,0.7,0.9), 1.0-exp( -0.0001*t*t*t ) );
     }
 
