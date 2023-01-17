@@ -624,12 +624,13 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
         }
 		else // terrain
         {
-            col = vec3(0.05,0.09,0.02);
+            col = vec3(0.3961, 0.2118, 0.2196);
+            col += 0.5*snoise(vec2(fract(pos.x=0.5), fract(pos.y)));
             
             //格子颜色
             float wave  = sin(18.0*pos.x)+sin(18.0*pos.y)+sin(18.0*pos.z); //生成黑白相间的颜色
             float f = 0.2*(-1.0+2.0*smoothstep(-0.2,0.2,wave)); //让wave变得更加锋利，颜色变化更剧烈
-            col += f*vec3(0.06,0.06,0.02);
+            //col += f*vec3(0.06,0.06,0.02);
             
             //提高亮度：对阳光反射亮度进行了加强
             ks = 0.5 + pos.y*0.15;
