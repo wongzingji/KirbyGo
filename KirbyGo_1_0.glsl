@@ -19,7 +19,7 @@ float smax( float a, float b, float k )
     return max(a, b) + h*h*0.25/k;
 }
 
-vec2 opU( vec2 d1, vec2 d2 )
+vec4 opU( vec4 d1, vec4 d2 )
 {
 	return (d1.x<d2.x) ? d1 : d2;
 }
@@ -33,6 +33,31 @@ mat2 rotMat(float rot)
 
 ///////////////////////////////////
 //sdf
+float sdTorus(vec3 p, vec2 t) {
+  vec2 q = vec2(length(p.xz)-t.x,p.y);
+  return length(q)-t.y;
+}
+
+float sdDonut(vec3 p, float rad) {
+    float d1 = sdTorus(p, vec2(rad, rad/1.5));
+	return d1;
+}
+
+float sdCream(vec3 p, float rad) {
+    float f = 0.0;
+    f += sin(p.x * 1.1*16. + p.z * 1.2*3.) * 1.;
+    f += sin(p.x * 2.5*3.) * 0.5;
+    f += sin(p.z * 4.*3.) * 0.25;
+    f /= 8.0;
+    
+    float d2 = abs(p.y*7. + f + 2.0) - 2.3;
+    
+    float d1 = sdDonut(p,  rad);
+    float d = max(d1, -d2);
+    
+	return d ;
+}
+
 //球
 float sdSphere( vec3 p, float s )
 {
@@ -55,13 +80,47 @@ vec2 sdStick(vec3 p, vec3 a, vec3 b, float r1, float r2)
 	return vec2( length( pa - ba*h ) - mix(r1,r2,h*h*(3.0-2.0*h)), h );
 }
 
+float sdEllipse( in vec2 p, in vec2 ab )
+{
+    p = abs(p); if( p.x > p.y ) {p=p.yx;ab=ab.yx;}
+    float l = ab.y*ab.y - ab.x*ab.x;
+    float m = ab.x*p.x/l;      float m2 = m*m; 
+    float n = ab.y*p.y/l;      float n2 = n*n; 
+    float c = (m2+n2-1.0)/3.0; float c3 = c*c*c;
+    float q = c3 + m2*n2*2.0;
+    float d = c3 + m2*n2;
+    float g = m + m*n2;
+    float co;
+    if( d<0.0 )
+    {
+        float h = acos(q/c3)/3.0;
+        float s = cos(h);
+        float t = sin(h)*sqrt(3.0);
+        float rx = sqrt( -c*(s + t + 2.0) + m2 );
+        float ry = sqrt( -c*(s - t + 2.0) + m2 );
+        co = (ry+sign(l)*rx+abs(g)/(rx*ry)- m)/2.0;
+    }
+    else
+    {
+        float h = 2.0*m*n*sqrt( d );
+        float s = sign(q+h)*pow(abs(q+h), 1.0/3.0);
+        float u = sign(q-h)*pow(abs(q-h), 1.0/3.0);
+        float rx = -s - u - c*4.0 + 2.0*m2;
+        float ry = (s - u)*sqrt(3.0);
+        float rm = sqrt( rx*rx + ry*ry );
+        co = (ry/sqrt(rm-rx)+2.0*g/rm-m)/2.0;
+    }
+    vec2 r = ab * vec2(co, sqrt(1.0-co*co));
+    return length(r-p) * sign(p.y-r.y);
+}
 
 ////////////////////////////////
 //绘制物体
-vec2 map( in vec3 pos, float atime )
+vec4 map( in vec3 pos, float atime )
 {
     
-    vec2 res = vec2(-1.,-1.);
+    vec2 objXY = vec2(0.,0.);
+    vec4 res = vec4(-1.,-1., objXY);
     
     //yMove
     float t = fract(atime); //[0,1]的上下波动函数
@@ -79,7 +138,11 @@ vec2 map( in vec3 pos, float atime )
     
     //Coordinate
     vec3 basic = pos-cen; 
-    basic.xy = rotMat(-xMove*0.3) * basic.xy;
+    basic.xy = rotMat(-xMove*0.3) * basic.xy; 
+    
+    float ttt = abs(fract((atime+0.5)*0.5)-0.5)/0.5;
+    float bodyMove = 0.5*(-1.0 + 2.0*ttt);
+    basic.xz = rotMat(bodyMove*1.) * basic.xz;
     
     vec3 symmBody =  vec3(  abs(basic.x), basic.yz);
  
@@ -90,13 +153,14 @@ vec2 map( in vec3 pos, float atime )
     sy = sy*(1.0-compress) + compress;
     float sx = 1./sy;
     
-    float dBody = sdEllipsoid( basic , vec3(0.2*sx, 0.2*sy, 0.2) );
+    //float dBody = sdEllipsoid( basic , vec3(0.2*sx, 0.2*sy, 0.2) );
+    float dBody = sdEllipsoid( basic , vec3(0.2, 0.2, 0.2) );
 
     //arm
     vec3 armPos = vec3(0.2, 0., 0.);
     float dArm = sdSphere( symmBody - armPos, 0.07);
     
-    dBody = smin(dBody, dArm, 0.05);
+    dBody = smin(dBody, dArm, 0.03);
     
     //mouth
     {
@@ -105,7 +169,11 @@ vec2 map( in vec3 pos, float atime )
     float dMouth = sdEllipsoid( basic - mouthPos, vec3(0.1, 0.11, 0.15)*0.3 );
     
     dBody = smax(dBody, -dMouth, 0.01);
-    vec2 bodyObj = vec2(dBody, 2.0);
+   
+   vec2 frontBody= vec2(-1., -1.);    
+    if (basic.z > 0.){frontBody = symmBody.xy;}
+
+    vec4 bodyObj = vec4(dBody, 2.0, frontBody);
     res = bodyObj;
     }
     
@@ -126,28 +194,45 @@ vec2 map( in vec3 pos, float atime )
     legPos.xy =rotMat(t6*sign(basic.x)) * legPos.xy ; //随时间前后摇摆
         
     float dleg = sdEllipsoid( legPos, vec3(0.43, 0.18, 0.28)*0.3 );
-    vec2 legObj = vec2(dleg, 3.0);
+    vec4 legObj = vec4(dleg, 3.0, objXY);
     
     res = opU(res, legObj);
     }
     
     
     //eye
-    vec3 eyePos = vec3(0.06, 0.05, 0.17);
+    vec3 eyePos = vec3(0.06, 0.05, 0.19-2.*basic.y*basic.y);
     eyePos = symmBody - eyePos;
     
-    eyePos.yz = rotMat(0.2)*eyePos.yz;//更贴合脸部
-    float dEye = sdEllipsoid( eyePos, vec3(0.15, 0.3, 0.1)*0.2 );
-    vec2 eyeObj = vec2(dEye, 4.0);
+    eyePos.xz = rotMat(0.32)*eyePos.xz;//更贴合脸部
+    
+    float ss = min(1.,mod(atime,3.1));
+    float sss = 1.- (smoothstep(0.,0.1,ss)-smoothstep(0.18,0.4,ss));
+    
+    float dEye = sdEllipsoid( eyePos, vec3(0.15, 0.3*sss+0.001, 0.03*sss+0.001)*0.2 );
+    //float dEye = sdEllipsoid( eyePos, vec3(0.15, 0.3, 0.05)*0.2 );
+    vec4 eyeObj = vec4(dEye, 4.0, eyePos.xy);
+    
+    //return eyeObj;
     res = opU(res, eyeObj);
     
      //eyeball
-    vec3 eyeballPos = vec3(0.065, 0.07, 0.17);
+    vec3 eyeballPos = vec3(0.06, 0.075, (0.2-2.*basic.y*basic.y));
     eyeballPos = symmBody - eyeballPos;
     
-    float dEyeball = sdSphere( eyeballPos, 0.02 );
-    vec2 eyeballObj = vec2(dEyeball, 5.0);
-    res = opU(res, eyeballObj);
+    //float dEyeball = sdSphere( eyeballPos, 0.02 );
+    float dEyeball = sdEllipsoid( eyeballPos, vec3(0.018*sss+0.0001, 0.023*sss+0.0001, 0.007*sss+0.0001) );
+    vec4 eyeballObj = vec4(dEyeball, 5.0, eyeballPos.xy);
+    //res = opU(res, eyeballObj);
+    
+    //vec3 eyePos = vec3(0.06, 0.05, 0.17);
+    //eyePos = symmBody - eyePos;
+    
+    //float dEye = sdEllipse(eyePos.xy, vec2(0.15, 0.3));
+    //vec2 eyeObj = vec2(dEye, 4.0);
+    //res = opU(res, eyeObj);
+    
+    
     
     
     // ground
@@ -185,15 +270,15 @@ vec2 map( in vec3 pos, float atime )
     dTree = min(dTree,2.0);
 
     dFloor = smin( dFloor, dTree, 0.32 );
-    vec2 floorObj = vec2(dFloor, 1.0);
+    vec4 floorObj = vec4(dFloor, 1.0, objXY);
     
     res = opU(res, floorObj);
     
     
-    //candy
+    //donuts
     {
     float fs = 5.0;
-    vec3 qos = fs*vec3(pos.x, pos.y-floorHeight, pos.z );
+    vec3 qos = fs*vec3(pos.x, pos.y-floorHeight-0.02, pos.z );
     vec2 id = vec2( floor(qos.x+0.5), floor(qos.z+0.5) );
     
     vec3 vp = vec3( fract(qos.x+0.5)-0.5,qos.y,fract(qos.z+0.5)-0.5);
@@ -201,21 +286,25 @@ vec2 map( in vec3 pos, float atime )
     
     float den = sin(id.x*0.1+sin(id.y*0.091))+sin(id.y*0.1);
     float fid = id.x*0.143 + id.y*0.372;
-    float ra = smoothstep(0.0,0.1,den*0.1+fract(fid)-0.95);
+    float ra = smoothstep(0.0,0.1,den*0.1+fract(fid)-0.9);
     
-    float dCandy = sdSphere( vp, 0.35*ra )/fs;
-    vec2 candyObj = vec2(dCandy, 6.0);
+    float dDonut = sdDonut(vp, 0.24*ra)/fs;
+    float dCream = sdCream(vp, 0.24*ra)/fs;
+    //float dCandy = sdSphere( vp, 0.35*ra )/fs;
+    vec4 donutObj = vec4(dDonut, 6.0, objXY);
+    vec4 creamObj = vec4(dCream, 7.0, objXY);
     
-    res = opU(res, candyObj);
+    res = opU(res, donutObj);
+    res = opU(res, creamObj);
     }
     
     return res;
 }
 
 //光线跟踪技术
-vec2 castRay( in vec3 ro, in vec3 rd, float time )
+vec4 castRay( in vec3 ro, in vec3 rd, float time )
 {
-    vec2 res = vec2(-1.0,-1.0);
+    vec4 res = vec4(-1.0,-1.0, 0., 0.);
 
     float tmin = 0.5;
     float tmax = 20.0;
@@ -223,10 +312,10 @@ vec2 castRay( in vec3 ro, in vec3 rd, float time )
     float t = tmin;
     for( int i=0; i<256 && t<tmax; i++ )
     {
-        vec2 h = map( ro+rd*t, time );
+        vec4 h = map( ro+rd*t, time );
         if( abs(h.x)<(0.0005*t) )
         { 
-            res = vec2(t,h.y); 
+            res = vec4(t,h.yzw); 
             break;
         }
         t += h.x;
@@ -277,10 +366,11 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
     // sky dome
     vec3 col = vec3(0.5, 0.8, 0.9) - max(rd.y,0.0)*0.5;
     
-    vec2 res = castRay(ro,rd, time);
+    vec4 res = castRay(ro,rd, time);
     if( res.y>-0.5 )
     {
         float t = res.x;
+        vec2 objXY = res.zw;
         vec3 pos = ro + t*rd;
         vec3 nor = calcNormal( pos, time );
         vec3 ref = reflect( rd, nor );
@@ -289,28 +379,55 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
 		col = vec3(0.2);
         float ks = 1.0;
 
-        if (res.y > 5.5)  //candy
+        if (res.y > 6.5)  //cream
+        {
+            col = vec3(0.14,0.048,0.0); 
+             vec2 id = floor(5.0*pos.xz+0.5);
+		     col += 0.13*cos((id.x*11.1+id.y*37.341) + vec3(1.0,1.0,1.0) );
+             col = max(col,0.0);
+            //col = vec3(0.639,0.302,0.549);
+          
+        }
+        else if (res.y > 5.5)  //candy
         {
             col = vec3(0.14,0.048,0.0); 
              vec2 id = floor(5.0*pos.xz+0.5);
 		     col += 0.036*cos((id.x*11.1+id.y*37.341) + vec3(0.0,1.0,2.0) );
              col = max(col,0.0);
         }
-        else if (res.y > 4.5)
+        else if (res.y > 4.5) ///eyeball
         {
-            col = vec3(1.0);
+            col = vec3(0.365,0.541,0.898);
+            //col = vec3(0.,0.,0.875);
+            
+            vec2 ab = vec2(1.,2.); 
+            float eyeCircle = (objXY.x*objXY.x)/(ab.x*ab.x) + (objXY.y*objXY.y)/(ab.y*ab.y);
+            
+            
+            if (eyeCircle< 0.0001){
+            //if (objXY.y<0.0001) {
+                col = vec3(1.);
+            }
+            
         }
         else if( res.y>3.5 ) // eye
         {  // todo: 渐变色:需要返回相对坐标不能使用绝对坐标
             vec3 black = vec3(0.0);
             vec3 blue = vec3(0.0,0.0,1.0);
-            col = (1.0 - vec3(smoothstep(0.9,1.04,pos.y))) * blue;
-            vec2 circleP = vec2(0.07, 1.06);
-            float xx = (abs(pos.x) - circleP.x)*(abs(pos.x) - circleP.x);
-            float yy = (pos.y - circleP.y)*(pos.y - circleP.y);
-            //if ( xx+yy < 0.0003){col = vec3(1.0);}
+            col = (1.0 - vec3(smoothstep(-0.2,0.,objXY.y))) * blue;
             
-            col = vec3(0.0);
+            vec2 ab = vec2(0.0,0.02);
+             float eyeBall = pow(objXY.x-ab.x,2.0)/1. + pow(objXY.y-ab.y,2.0)/4.;
+             if (eyeBall < 0.0002){col = vec3(1.0);}
+            //if (eyeLight < 0.00005){col = vec3(0.278,0.278,1.000);}
+
+            //vec2 circleP = vec2(0.07, 1.06);
+            //float xx = (abs(objXY.x) - circleP.x)*(abs(objXY.x) - circleP.x);
+            //float yy = (objXY.y - circleP.y)*(objXY.y - circleP.y);
+            //col = vec3(0.0,0.0,1.0);
+            //if ( objXY.y < 0.0003){col = blue;}
+            
+            //col = vec3(0.0);
         } 
         else if( res.y>2.5 ) // leg
         { 
@@ -319,6 +436,23 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
         else if( res.y>1.5 ) // body
         { 
             col = vec3(0.5,0.07,0.1);
+            if (objXY.x > -0.5){
+            
+                vec3 bodyCol = vec3(0.5,0.07,0.1);
+                vec3 blusherCol = vec3(0.686,0.031,0.067);
+                vec3 mouthCol = vec3(0.561,0.020,0.047);
+
+                vec2 ab = vec2(0.12,-0.02); 
+                float blusher = pow(objXY.x-ab.x,2.0)/4. + pow(objXY.y-ab.y,2.0)/1.;
+                col = mix(blusherCol, bodyCol, smoothstep(0.0001, 0.0002, blusher));
+                
+                float mouth = pow(objXY.x,2.0)/4. + pow(objXY.y-12.*pow(objXY.x, 2.0)+0.04,2.0)/4.;
+                if (mouth < 0.00015){col = mouthCol;}
+
+               //if (blusher<0.0001){col = vec3(0.686,0.031,0.067); }
+               //else if (blusher<0.0002){}
+           }
+            
         }
 		else // terrain
         {
