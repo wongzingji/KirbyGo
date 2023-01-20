@@ -6,6 +6,7 @@ struct Material
     float 	specularPower;
 };
 Material stem_mat = Material(vec3(0.8196, 0.3922, 0.2078), vec3(0.3), 8.0);
+Material bubble_mat = Material(vec3(0.7529, 0.4824, 0.6039), vec3(0.3), 8.0);
 
 // cloud params
 const int _VolumeSteps = 64;
@@ -133,89 +134,6 @@ vec4 taylorInvSqrt(vec4 r)
   return 1.79284291400159 - 0.85373472095314 * r;
 }
 
-// float snoise(vec3 v)
-// {
-//   const vec2  C = vec2(1.0/6.0,1.0/3.0);
-//   const vec4  D = vec4(0.211324865405187,
-//                         // (3.0-sqrt(3.0))/6.0
-//                         0.366025403784439,
-//                         // 0.5*(sqrt(3.0)-1.0)
-//                         -0.577350269189626,
-//                         // -1.0 + 2.0 * C.x
-//                         0.024390243902439);
-//                         // 1.0 / 41.0
-// //const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
-
-// // First corner
-//   vec3 i  = floor(v + dot(v, C.yyy) );
-//   vec3 x0 =   v - i + dot(i, C.xxx) ;
-
-// // Other corners
-//   vec3 g = step(x0.yzx, x0.xyz);
-//   vec3 l = 1.0 - g;
-//   vec3 i1 = min( g.xyz, l.zxy );
-//   vec3 i2 = max( g.xyz, l.zxy );
-
-//   //   x0 = x0 - 0.0 + 0.0 * C.xxx;
-//   //   x1 = x0 - i1  + 1.0 * C.xxx;
-//   //   x2 = x0 - i2  + 2.0 * C.xxx;
-//   //   x3 = x0 - 1.0 + 3.0 * C.xxx;
-//   vec3 x1 = x0 - i1 + C.xxx;
-//   vec3 x2 = x0 - i2 + C.yyy; // 2.0*C.x = 1/3 = C.y
-//   vec3 x3 = x0 - D.yyy;      // -1.0+3.0*C.x = -0.5 = -D.y
-
-// // Permutations
-//   i = mod289(i); 
-//   vec4 p = permute( permute( permute( 
-//              i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-//            + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
-//            + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
-
-// // Gradients: 7x7 points over a square, mapped onto an octahedron.
-// // The ring size 17*17 = 289 is close to a multiple of 49 (49*6 = 294)
-//   float n_ = 0.142857142857; // 1.0/7.0
-//   vec3  ns = n_ * D.wyz - D.xzx;
-
-//   vec4 j = p - 49.0 * floor(p * ns.z * ns.z);  //  mod(p,7*7)
-
-//   vec4 x_ = floor(j * ns.z);
-//   vec4 y_ = floor(j - 7.0 * x_ );    // mod(j,N)
-
-//   vec4 x = x_ *ns.x + ns.yyyy;
-//   vec4 y = y_ *ns.x + ns.yyyy;
-//   vec4 h = 1.0 - abs(x) - abs(y);
-
-//   vec4 b0 = vec4( x.xy, y.xy );
-//   vec4 b1 = vec4( x.zw, y.zw );
-
-//   //vec4 s0 = vec4(lessThan(b0,0.0))*2.0 - 1.0;
-//   //vec4 s1 = vec4(lessThan(b1,0.0))*2.0 - 1.0;
-//   vec4 s0 = floor(b0)*2.0 + 1.0;
-//   vec4 s1 = floor(b1)*2.0 + 1.0;
-//   vec4 sh = -step(h, vec4(0.0));
-
-//   vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
-//   vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
-
-//   vec3 p0 = vec3(a0.xy,h.x);
-//   vec3 p1 = vec3(a0.zw,h.y);
-//   vec3 p2 = vec3(a1.xy,h.z);
-//   vec3 p3 = vec3(a1.zw,h.w);
-
-// //Normalise gradients
-//   vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
-//   p0 *= norm.x;
-//   p1 *= norm.y;
-//   p2 *= norm.z;
-//   p3 *= norm.w;
-
-// // Mix final noise value
-//   vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-//   m = m * m;
-//   return 130.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
-//                                 dot(p2,x2), dot(p3,x3) ) );
-// }
-
 float snoise(vec3 v)
   { 
   const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
@@ -322,6 +240,19 @@ float snoise(vec2 v) {
     return 130.0 * dot(m, g);
 }
 
+vec3 hsv2rgb( float h, float s, float v )
+{
+	return (
+		(
+			clamp(
+				abs( fract( h + vec3( 0.0, 2.0, 1.0 ) / 3.0 ) * 6.0 - 3.0 ) - 1.0
+			,	0.0
+			,	1.0
+			) - 1.0
+		) * s + 1.0
+	) * v;
+}
+
 float random (in vec2 _st) {
     return fract(sin(dot(_st.xy,vec2(12.9898,78.633)))*43758.5453123);
 }
@@ -385,7 +316,7 @@ float head( in vec3 p )
     //return d3;
 }
 
-vec4 sdMushroom(vec3 p)
+vec4 mapMushroom(vec3 p)
 {
     vec2 objXY = vec2(0., 0.);
     // objID: 7.0, 8.0
@@ -401,7 +332,7 @@ vec4 sdMushroom(vec3 p)
     q.xz = rot*q.xz;
 
     float d1 = sdSegment( q, vec3(-0.15,0.0,0.0), vec3(-0.11,1.45,0.00) ).x;
-    d1 -= 0.04;
+    d1 -= 0.06;
     d1 -= 0.1*exp(-16.0*h);
     vec4 res = vec4(d1, 8.0, objXY);
 
@@ -417,7 +348,7 @@ vec4 sdMushroom(vec3 p)
     return res;
 }
 
-vec2 sdTerrian(in vec3 pos, float atime)
+vec2 sdFloor(in vec3 pos, float atime)
 {
     float floorHeight = -0.1 //基础高度
                                      - 0.05*(sin(pos.x*2.0)+sin(pos.z*2.0)); //地形
@@ -551,9 +482,10 @@ vec4 map( in vec3 pos, float atime )
     
     
     // ground
-    vec2 floorData = sdTerrian(pos, atime);
+    vec2 floorData = sdFloor(pos, atime);
     float floorHeight = floorData.x;
     float dFloor = floorData.y;
+    vec2 floorObj = vec2(dFloor, 0.0);
     
     // bubbles
     
@@ -573,15 +505,17 @@ vec4 map( in vec3 pos, float atime )
     float dTree = sdEllipsoid( bubbleArea-vec3(2.0,y,0.0), rad*siz );
         //添加突出效果
     float bubbleTexture = 0.2*(-1.0+2.0*smoothstep(-0.2,0.2, sin(18.0*pos.x)+sin(18.0*pos.y)+sin(18.0*pos.z))); 
-    dTree += 0.01 * bubbleTexture;
+    //dTree += 0.01 * bubbleTexture;
+
     
     dTree *= 0.6;
     dTree = min(dTree,2.0);
+    vec2 treeObj = vec2(dTree,1.0);
 
-    dFloor = smin( dFloor, dTree, 0.32 );
-    vec4 floorObj = vec4(dFloor, 1.0, objXY);
+    vec2 res2 = smin( floorObj, treeObj, 0.32 );
+    //vec4 floorObj = vec4(dFloor, 1.0, objXY);
     
-    res = opU(res, floorObj);
+    res = opU(res, vec4(res2,objXY));
     
     //donuts
     {
@@ -596,12 +530,19 @@ vec4 map( in vec3 pos, float atime )
     float fid = id.x*0.143 + id.y*0.372;
     float ra = smoothstep(0.0,0.1,den*0.1+fract(fid)-0.9);
     
+    if (ra < 0.001)
+    {
+        ra = -0.1;
+    }
+
+    vec4 donutObj;
+    vec4 creamObj;
     float dDonut = sdDonut(vp, 0.24*ra)/fs;
     float dCream = sdCream(vp, 0.24*ra)/fs;
     //float dCandy = sdSphere( vp, 0.35*ra )/fs;
-    vec4 donutObj = vec4(dDonut, 5.0, objXY);
-    vec4 creamObj = vec4(dCream, 6.0, objXY);
-    
+    donutObj = vec4(dDonut, 5.0, objXY);
+    creamObj = vec4(dCream, 6.0, objXY);
+
     res = opU(res, donutObj);
     res = opU(res, creamObj);
     }
@@ -611,7 +552,7 @@ vec4 map( in vec3 pos, float atime )
     vec3 q = pos;
     q.xz = mod(q.xz - vec2(2.5), 5.0) - vec2(2.5); // repeat
     q.y -= 1.05;
-    vec4 mushroomObj = sdMushroom(q);
+    vec4 mushroomObj = mapMushroom(q);
     res = opU(res, mushroomObj);
     }
 
@@ -778,7 +719,8 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
 
         if (res.y > 7.5) // mushroom stem
         {
-            col = vec3(0.2588, 0.1098, 0.0392);
+            col = vec3(0.6706, 0.2, 0.0549);   
+            col = mix( col, 0.6*vec3(0.2078, 0.098, 0.1059), 0.92*(1.0-smoothstep(0.1,0.5,pos.y)) );
         }
         else if (res.y > 6.5)
         {
@@ -860,22 +802,27 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
                 float mouth = pow(objXY.x,2.0)/4. + pow(objXY.y-12.*pow(objXY.x, 2.0)+0.04,2.0)/4.;
                 if (mouth < 0.00015){col = mouthCol;}
                }
-        }
-		else // terrain
+        } else if (res.y>0.5) // bubble
+        {
+            col = bubble_mat.diffuseAlbedo;
+        } 
+        else // ground
         {
             col = vec3(0.3961, 0.2118, 0.2196);
             //col += 0.5*snoise(vec2(fract(pos.x), fract(pos.y)));
             
             //格子颜色
-            float wave  = sin(18.0*pos.x)+sin(18.0*pos.y)+sin(18.0*pos.z); //生成黑白相间的颜色
+            // float wave  = sin(18.0*pos.x)+sin(18.0*pos.y)+sin(18.0*pos.z); //生成黑白相间的颜色
+            float wave = sqrt(1.0-pow(fract(pos.x+pos.y*2.0+pos.z*0.5), 2.0)) + pow(pos.x*pos.x, 0.33);
             float f = 0.2*(-1.0+2.0*smoothstep(-0.2,0.2,wave)); //让wave变得更加锋利，颜色变化更剧烈
-            col += f*vec3(0.06,0.06,0.02);
+            col += 0.6*wave*vec3(0.1529, 0.0902, 0.1098);
+            col *= vec3(0.6392, 0.4431, 0.4431);            // vec3(0.06,0.06,0.02)
             
             //提高亮度：对阳光反射亮度进行了加强
             ks = 0.5 + pos.y*0.15;
         }
         
-        // lighting
+        // lighting (sun, sky, bounce)
         vec3  sun_lig = normalize( vec3(0.6, 0.35, 0.5) );
         float sun_dif = clamp(dot( nor, sun_lig ), 0.0, 1.0 );
         vec3  sun_hal = normalize( sun_lig-rd );
@@ -889,18 +836,19 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
         lin += sky_dif*vec3(0.50,0.70,1.00);
         lin += bou_dif*vec3(0.40,1.00,0.40);
         
+        if (res.y>0.5 && res.y<1.5)
+        {
+            float t = clamp(0.5, 0.2, 1.0);
+            lin *= t*calcTransmittance(pos+nor*vec3(0.01), sun_lig, 0.01, 10.0, 2.0, time);
+            lin += (1.0 - t) * calcTransmittance(pos+nor*vec3(0.01), rd, 0.01, 10.0, 0.5, time);
+        }
+
         col = col*lin;
 		col += sun_spe*vec3(8.10,6.00,4.20)*sun_sha;
-        
-        if (res.y > 7.5)
+        if (res.y>0.5 && res.y<1.5)
         {
-            vec3 lightColor = vec3(1.0);
-            
-            float t = clamp(0.5, 0.2, 1.0);
-            vec3 light = t * lightColor * calcTransmittance(pos+nor*vec3(0.01), sun_lig, 0.01, 10.0, 2.0, time);
-            light += (1.0 - t) * calcTransmittance(pos+nor*vec3(0.01), rd, 0.01, 10.0, 0.5, time);
-            col =  light * stem_mat.diffuseAlbedo;
-            col += light * stem_mat.specularAlbedo * pow(max(0.0, dot(reflect(sun_lig,nor),rd)), 4.0);
+            col += lin * bubble_mat.specularAlbedo * pow(max(0.0, dot(reflect(sun_lig,nor),rd)), 4.0);
+            col = mix( col, vec3(0.3961, 0.2118, 0.2196), 0.92*(1.0-smoothstep(0.1,0.5,pos.y)) );
         }
 
         col = mix( col, vec3(0.5,0.7,0.9), 1.0-exp( -0.0001*t*t*t ) );
@@ -923,6 +871,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
                                             +time*1.0 - 0.4*forwardWave; //虽然依旧是线性前进但是有个动态的微小波动更显真实
     
     //冲突1 ： 我不知道为什么无法调到正面的视图，重改了一下（SU）
+    // 10.0应该是角度更广的意思
     ////////////////////////****V2.0***********************///////////////////
     //float rotx = 2.5 + (iMouse.y / iResolution.y)*4.0;
     //float roty = 2.5 + (iMouse.x / iResolution.x)*4.0;
