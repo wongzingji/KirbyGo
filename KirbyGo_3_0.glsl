@@ -56,6 +56,13 @@ mat2 rotMat(float rot)
 
 ///////////////////////////////////
 //sdf
+// 圆角长方体
+float sdRoundBox( vec3 p, vec3 b, float r )
+{
+  vec3 q = abs(p) - b;
+  return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0) - r;
+}
+
 //球
 float sdSphere( vec3 p, float s )
 {
@@ -209,6 +216,50 @@ float snoise(vec3 v)
                                 dot(p2,x2), dot(p3,x3) ) );
 }
 
+// noise for water surface
+float psrdnoise(vec2 x, vec2 period, float alpha, out vec2 gradient)
+{
+	vec2 uv = vec2(x.x+x.y*0.5, x.y);
+	vec2 i0 = floor(uv), f0 = fract(uv);
+	float cmp = step(f0.y, f0.x);
+	vec2 o1 = vec2(cmp, 1.0-cmp);
+	vec2 i1 = i0 + o1, i2 = i0 + 1.0;
+	vec2 v0 = vec2(i0.x - i0.y*0.5, i0.y);
+	vec2 v1 = vec2(v0.x + o1.x - o1.y*0.5, v0.y + o1.y);
+	vec2 v2 = vec2(v0.x + 0.5, v0.y + 1.0);
+	vec2 x0 = x - v0, x1 = x - v1, x2 = x - v2;
+	vec3 iu, iv, xw, yw;
+	if(any(greaterThan(period, vec2(0.0)))) {
+		xw = vec3(v0.x, v1.x, v2.x);
+		yw = vec3(v0.y, v1.y, v2.y);
+		if(period.x > 0.0)
+			xw = mod(vec3(v0.x, v1.x, v2.x), period.x);
+		if(period.y > 0.0)
+			yw = mod(vec3(v0.y, v1.y, v2.y), period.y);
+		iu = floor(xw + 0.5*yw + 0.5); iv = floor(yw + 0.5);
+	} else {
+		iu = vec3(i0.x, i1.x, i2.x); iv = vec3(i0.y, i1.y, i2.y);
+	}
+	vec3 hash = mod(iu, 289.0);
+	hash = mod((hash*51.0 + 2.0)*hash + iv, 289.0);
+	hash = mod((hash*34.0 + 10.0)*hash, 289.0);
+	vec3 psi = hash*0.07482 + alpha;
+	vec3 gx = cos(psi); vec3 gy = sin(psi);
+	vec2 g0 = vec2(gx.x, gy.x);
+	vec2 g1 = vec2(gx.y, gy.y);
+	vec2 g2 = vec2(gx.z, gy.z);
+	vec3 w = 0.8 - vec3(dot(x0, x0), dot(x1, x1), dot(x2, x2));
+	w = max(w, 0.0); vec3 w2 = w*w; vec3 w4 = w2*w2;
+	vec3 gdotx = vec3(dot(g0, x0), dot(g1, x1), dot(g2, x2));
+	float n = dot(w4, gdotx);
+	vec3 w3 = w2*w; vec3 dw = -8.0*w3*gdotx;
+	vec2 dn0 = w4.x*g0 + dw.x*x0;
+	vec2 dn1 = w4.y*g1 + dw.y*x1;
+	vec2 dn2 = w4.z*g2 + dw.z*x2;
+	gradient = 10.9*(dn0 + dn1 + dn2);
+	return 10.9*n;
+}
+
 //----
 
 float snoise(vec2 v) {
@@ -299,6 +350,55 @@ float fbm(vec3 p)
 
 ////////////////////////////////
 // add elements
+// waterfall texture
+vec3 wftexel(vec2 uv, float time)
+{
+    vec3 bd = vec3(0.66,0.196,0.188);
+    vec3 td = vec3(0.463,0.188,0.165);
+    vec3 bl = vec3(1.0,1.0,1.0);
+    vec3 tl = vec3(0.9,0.757,0.737);
+    
+    // TODO: increase as time goes by
+    float threshold = 0.2;
+    
+    // TODO: increase as time goes by
+    vec2 uv2 = uv * vec2(1.6,1.0);
+
+    // displacement
+    vec2 displ = texture(iChannel1, uv2 + iTime / 5.0).xy;
+    displ = (displ*2.0-1.0) * 0.04;  // displacement amount
+    
+    // noise
+    float noise = texture(iChannel0, vec2( uv.x*2.0, uv.y*0.2 + iTime/5.0 ) + displ).r;
+    noise = round(noise*5.0)/5.0;
+    
+    vec3 col = mix(mix(bd,td,uv.y),mix(bl,tl,uv.x),noise);
+    col = mix(vec3(1.0), col, step(threshold,uv.y+displ.y));
+    return col;
+}
+
+// watersurface
+vec3 watersurf(vec2 uv, float time)
+{   
+    // TODO: adjust as time goes by
+    uv *= vec2(3.0,3.0);
+    float freq = 4.0;
+    float amp = 1.0;
+    float n = 0.0;
+    vec2 g, gsum = vec2(0.0);
+
+    for (int i=0; i<5; i++) {
+        n += amp*psrdnoise(uv*freq+gsum*0.14, vec2(0.0), 8.0/freq*iTime, g);
+        gsum += g*amp;
+        freq *=2.0;
+        amp *= 0.5;
+    }
+
+    // 194 207 202 0.76
+    vec3 mixcolor = mix(vec3(0.463,0.188,0.165), vec3(0.5), -n*0.35+0.5);
+    return mixcolor;
+}
+
 // mushroom
 float head( in vec3 p )
 {
@@ -346,6 +446,58 @@ vec4 mapMushroom(vec3 p)
     res = opU(res2, res);
         
     return res;
+}
+
+// waterfall
+vec4 sdWaterfall( in vec3 pos )
+{
+    vec2 objXY = vec2(0.,0.);
+    vec3 q = pos - vec3(0.0,0.6,11.0);
+    float mw = 1.2;  // waterfall width
+    float mh = 0.5;
+    float hgap = 0.0; // height difference between boxbehind and waterfall
+    float mate = 9.0; // set default material number to waterfall
+
+    float d = sdRoundBox(q,vec3(mw,mh,0.3),0.1); // waterfall
+    float d2 = sdRoundBox(q-vec3(0.0,-2.0*hgap,-0.2),vec3(mw,mh-hgap,0.2),0.2); // box behind
+    
+    if(d > d2)
+    {
+        mate = 12.0;  // boxbehind
+    }
+    d = min(d,d2);
+   
+    return vec4(d,mate,objXY);
+}
+
+// vec4 sdPondTest(in vec3 pos)
+// {
+//     vec2 objXY = vec2(0.0);
+//     vec3 q = pos-vec3(-1.0,0.4,27.0);
+//     float d = sdRoundBox(q,vec3(0.8,0.12,0.8),0.0);
+//     return vec4(d,11.0,objXY);
+// }
+
+// pond
+vec4 sdPond( in vec3 pos )
+{
+    vec2 objXY = vec2(0.0,0.0);
+    vec3 q = pos-vec3(0.0,-0.8,6.5);
+    float w = 0.8; // width/height of pond border
+       
+    // outside box
+    float d1 = sdRoundBox(q,vec3(w,0.12,w),0.0);
+    
+    // inside box
+    float d2 = sdRoundBox(q,vec3(w-0.2,0.15,w-0.2),0.0);
+    d1 = max(d1,-d2);
+    
+    // water surface
+    q.y += 0.04;
+    //float d3
+    float d3 = sdRoundBox(q,vec3(w-0.1,0.02+0.02*sin(3.0*iTime),w-0.1),0.0);
+    
+    return d1 > d3 ? vec4(d3,10.0,objXY) : vec4(d1,11.0,objXY);
 }
 
 vec2 sdFloor(in vec3 pos, float atime)
@@ -560,6 +712,20 @@ vec4 map( in vec3 pos, float atime )
     res = opU(res, mushroomObj);
     }
 
+    // waterfall
+    {
+    vec3 q = pos;
+    vec4 wfObj = sdWaterfall(q);
+    res = opU(res,wfObj);
+    }
+    
+    // pond
+    {
+    vec3 q = pos;
+    vec4 pondObj = sdPond(q);
+    res = opU(res,pondObj);
+    }
+
     return res;
 }
 
@@ -700,7 +866,7 @@ vec4 castRayVolume(vec3 rayOrigin, vec3 rayStep, vec4 sum, out vec3 pos)
 }
 
 //颜色渲染
-vec3 render( in vec3 ro, in vec3 rd, float time )
+vec3 render( in vec3 ro, in vec3 rd, float time, vec2 uv )
 { 
     // sky dome
     vec3 col = vec3(0.5, 0.8, 0.9) - max(rd.y,0.0)*0.5;
@@ -721,7 +887,23 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
 		col = vec3(0.2);
         float ks = 1.0;
 
-        if (res.y > 7.5) // mushroom stem
+        if (res.y > 11.5)  // box behind waterfall 12
+        {
+            col = vec3(0.66,0.196,0.188);
+        }
+        else if (res.y > 10.5) // pond border 11
+        {
+            col = vec3(0.9,0.757,0.737);
+        }
+        else if (res.y > 9.5) // water surface 10
+        {
+            col = watersurf(uv, time);
+        }
+        else if (res.y > 8.5) // waterfall 9
+        {
+            col = wftexel(uv, time);
+        }
+        else if (res.y > 7.5) // mushroom stem
         {
             col = vec3(0.6706, 0.2, 0.0549);   
             col = mix( col, 0.6*vec3(0.2078, 0.098, 0.1059), 0.92*(1.0-smoothstep(0.1,0.5,pos.y)) );
@@ -866,6 +1048,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     //转换坐标，实现1. 位于中心 2.比例与画布长宽相同
     vec2 p = (-iResolution.xy + 2.0*fragCoord)/iResolution.y;
+    vec2 uv = fragCoord/min(iResolution.x, iResolution.y);
     float time = iTime;
     //float time = 1.;
     time *= 0.9;
@@ -905,7 +1088,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     //得到最终的相机方向
     vec3 rd = normalize( p.x*cu + p.y*cv + 1.8*cw ); //得到可以移动的
 
-    vec3 col = render( ro, rd, time );
+    vec3 col = render( ro, rd, time, uv );
 
     col = pow( col, vec3(0.4545) ); //加强颜色效果
 
