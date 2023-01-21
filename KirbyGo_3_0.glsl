@@ -537,6 +537,10 @@ vec4 map( in vec3 pos, float atime )
 
     vec4 donutObj;
     vec4 creamObj;
+
+    float angle = -1.2*fid;
+    vp.xy = rotMat(angle) * vp.xy;
+
     float dDonut = sdDonut(vp, 0.24*ra)/fs;
     float dCream = sdCream(vp, 0.24*ra)/fs;
     //float dCandy = sdSphere( vp, 0.35*ra )/fs;
@@ -838,6 +842,7 @@ vec3 render( in vec3 ro, in vec3 rd, float time )
         
         if (res.y>0.5 && res.y<1.5)
         {
+            // translucency
             float t = clamp(0.5, 0.2, 1.0);
             lin *= t*calcTransmittance(pos+nor*vec3(0.01), sun_lig, 0.01, 10.0, 2.0, time);
             lin += (1.0 - t) * calcTransmittance(pos+nor*vec3(0.01), rd, 0.01, 10.0, 0.5, time);
