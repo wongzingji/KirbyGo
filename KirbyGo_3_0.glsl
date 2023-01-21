@@ -353,13 +353,21 @@ float fbm(vec3 p)
 // waterfall texture
 vec3 wftexel(vec2 uv, float time)
 {
-    vec3 bd = vec3(0.66,0.196,0.188);
-    vec3 td = vec3(0.463,0.188,0.165);
-    vec3 bl = vec3(1.0,1.0,1.0);
-    vec3 tl = vec3(0.9,0.757,0.737);
+    //vec3 bd = vec3(0.66,0.196,0.188);
+    //vec3 td = vec3(0.463,0.188,0.165);
+    //vec3 bl = vec3(1.0,1.0,1.0);
+    //vec3 tl = vec3(0.9,0.757,0.737);
+    //123 21 19
+    vec3 bd = vec3(0.35,0.07,0.06);
+    //vec3 bd = vec3(123.0/255.0,21.0/255.0,19.0/255.0);
+    vec3 td = vec3(0.121,0.02,0.012);
+    // 198 121 121
+    vec3 bl = vec3(198.0/255.0,121.0/255.0,121.0/255.0);
+    //vec3 bl = vec3(0.79,0.73,0.73);
+    vec3 tl = vec3(0.772,0.376,0.32);
     
     // TODO: increase as time goes by
-    float threshold = 0.2;
+    float threshold = 0.55;
     
     // TODO: increase as time goes by
     vec2 uv2 = uv * vec2(1.6,1.0);
@@ -395,7 +403,7 @@ vec3 watersurf(vec2 uv, float time)
     }
 
     // 194 207 202 0.76
-    vec3 mixcolor = mix(vec3(0.463,0.188,0.165), vec3(0.5), -n*0.35+0.5);
+    vec3 mixcolor = mix(vec3(0.463,0.188,0.165), vec3(0.35), -n*0.35+0.5);
     return mixcolor;
 }
 
@@ -452,9 +460,9 @@ vec4 mapMushroom(vec3 p)
 vec4 sdWaterfall( in vec3 pos )
 {
     vec2 objXY = vec2(0.,0.);
-    vec3 q = pos - vec3(0.0,0.6,11.0);
-    float mw = 1.2;  // waterfall width
-    float mh = 0.5;
+    vec3 q = pos - vec3(0.0,0.6,-10.0);
+    float mw = 100.5;  // waterfall width
+    float mh = 4.0;
     float hgap = 0.0; // height difference between boxbehind and waterfall
     float mate = 9.0; // set default material number to waterfall
 
@@ -470,32 +478,24 @@ vec4 sdWaterfall( in vec3 pos )
     return vec4(d,mate,objXY);
 }
 
-// vec4 sdPondTest(in vec3 pos)
-// {
-//     vec2 objXY = vec2(0.0);
-//     vec3 q = pos-vec3(-1.0,0.4,27.0);
-//     float d = sdRoundBox(q,vec3(0.8,0.12,0.8),0.0);
-//     return vec4(d,11.0,objXY);
-// }
-
 // pond
 vec4 sdPond( in vec3 pos )
 {
     vec2 objXY = vec2(0.0,0.0);
-    vec3 q = pos-vec3(0.0,-0.8,6.5);
+    vec3 q = pos-vec3(-2.2,-0.05,7.3);
     float w = 0.8; // width/height of pond border
-       
+    float h = 0.08;
     // outside box
-    float d1 = sdRoundBox(q,vec3(w,0.12,w),0.0);
+    float d1 = sdRoundBox(q,vec3(w,h,w),0.0);
     
     // inside box
-    float d2 = sdRoundBox(q,vec3(w-0.2,0.15,w-0.2),0.0);
+    float d2 = sdRoundBox(q,vec3(w-0.2,h+0.01,w-0.2),0.0);
     d1 = max(d1,-d2);
     
     // water surface
     q.y += 0.04;
     //float d3
-    float d3 = sdRoundBox(q,vec3(w-0.1,0.02+0.02*sin(3.0*iTime),w-0.1),0.0);
+    float d3 = sdRoundBox(q,vec3(w,0.06+0.02*sin(3.0*iTime),w),0.0);
     
     return d1 > d3 ? vec4(d3,10.0,objXY) : vec4(d1,11.0,objXY);
 }
@@ -548,7 +548,7 @@ vec4 map( in vec3 pos, float atime )
     float yMove = pow(bounceWave,2.0-bounceWave) + 0.1; //下快上慢
     
     //zMove
-    float zMove = floor(atime) + pow(t,0.7) -1.0 ; //非线性的smooth移动
+    float zMove = 0.7*(floor(atime) + pow(t,0.7) -1.0) ; //非线性的smooth移动
         
      //xMove
     float tt = abs(fract(atime*0.5)-0.5)/0.5;
@@ -893,7 +893,11 @@ vec3 render( in vec3 ro, in vec3 rd, float time, vec2 uv )
         }
         else if (res.y > 10.5) // pond border 11
         {
-            col = vec3(0.9,0.757,0.737);
+            //vec3 bd = vec3(0.66,0.196,0.188);
+            //vec3 td = vec3(0.463,0.188,0.165);
+            //vec3 bl = vec3(1.0,1.0,1.0);
+            //vec3 tl = vec3(0.9,0.757,0.737);
+            col = vec3(0.463,0.188,0.165);
         }
         else if (res.y > 9.5) // water surface 10
         {
@@ -1051,12 +1055,12 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 uv = fragCoord/min(iResolution.x, iResolution.y);
     float time = iTime;
     //float time = 1.;
-    time *= 0.9;
+    time *= 0.7;
 
     // camera	  
     float forwardWave = sin(0.5*time);
-    float smoothForward = -1.
-                                            +time*1.0 - 0.4*forwardWave; //虽然依旧是线性前进但是有个动态的微小波动更显真实
+    float smoothForward = 0.7*(-1.
+                                            +time*1.0 - 0.4*forwardWave); //虽然依旧是线性前进但是有个动态的微小波动更显真实
     
     //冲突1 ： 我不知道为什么无法调到正面的视图，重改了一下（SU）
     // 10.0应该是角度更广的意思
