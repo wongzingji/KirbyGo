@@ -1,3 +1,9 @@
+// #if HW_PERFORMANCE==0
+// #define AA 1
+// #else
+#define AA 2  // Set AA to 1 if your machine is too slow
+// #endif
+
 // parmas
 struct Material
 {
@@ -20,6 +26,7 @@ const float _NoiseAmp = 2.0;
 
 const vec4 innerColor = vec4(0.7, 0.7, 0.7, _Density);
 const vec4 outerColor = vec4(1.0, 1.0, 1.0, 0.0);
+
 
 //utils
 // Smooth Min
@@ -532,6 +539,7 @@ float sdCloud(vec3 p)
 	return d;
 }
 
+#define ZERO (min(iFrame,0))
 ////////////////////////////////
 //绘制物体
 //修改：增加了返回相对坐标(x,y)以用来渲染颜色 
@@ -1050,51 +1058,70 @@ vec3 render( in vec3 ro, in vec3 rd, float time, vec2 uv )
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
-    //转换坐标，实现1. 位于中心 2.比例与画布长宽相同
-    vec2 p = (-iResolution.xy + 2.0*fragCoord)/iResolution.y;
-    vec2 uv = fragCoord/min(iResolution.x, iResolution.y);
-    float time = iTime;
-    //float time = 1.;
-    time *= 0.7;
+    vec3 tot = vec3(0.0);
+#if AA>1
+    for( int m=ZERO; m<AA; m++ )
+    for( int n=ZERO; n<AA; n++ )
+    {
+        //转换坐标，实现1. 位于中心 2.比例与画布长宽相同
+        vec2 o = vec2(float(m),float(n)) / float(AA) - 0.5;
+        vec2 p = (-iResolution.xy + 2.0*(fragCoord+o))/iResolution.y;
+        vec2 uv = (fragCoord+o)/min(iResolution.x, iResolution.y);
+        float d = 0.5+0.5*sin(fragCoord.x*147.0)*sin(fragCoord.y*131.0);
+        float time = iTime - 0.5*(1.0/24.0)*(float(m*AA+n)+d)/float(AA*AA);;
+#else
+        //转换坐标，实现1. 位于中心 2.比例与画布长宽相同
+        vec2 p = (-iResolution.xy + 2.0*fragCoord)/iResolution.y;
+        vec2 uv = fragCoord/min(iResolution.x, iResolution.y);
+        float time = iTime;
+#endif
+        //float time = 1.;
+        time *= 0.7;
 
-    // camera	  
-    float forwardWave = sin(0.5*time);
-    float smoothForward = 0.7*(-1.
-                                            +time*1.0 - 0.4*forwardWave); //虽然依旧是线性前进但是有个动态的微小波动更显真实
-    
-    //冲突1 ： 我不知道为什么无法调到正面的视图，重改了一下（SU）
-    // 10.0应该是角度更广的意思
-    ////////////////////////****V2.0***********************///////////////////
-    //float rotx = 2.5 + (iMouse.y / iResolution.y)*4.0;
-    //float roty = 2.5 + (iMouse.x / iResolution.x)*4.0;
-    //vec3  ta = vec3( 0.0, 0.65, smoothForward);
-    //float zoom = 1.0;
-    //vec3  ro = ta + zoom*normalize(vec3(cos(roty), cos(rotx), sin(roty))); 
-    ///////////////////////****************************//////////////////////
-    
-    float an_x = 10.*iMouse.x/iResolution.x;
-    float an_y = 10.*iMouse.y/iResolution.y;
-   vec3  ta = vec3( 0.0, 0.65, smoothForward);
-    vec3  ro = ta + vec3( 1.5*cos(an_x), 1.5*cos(an_y), 1.5*sin(an_x) ); 
-    
-    // camera bounce
-    float t4 = abs(fract(time*0.5)-0.5)/0.5;
-    float bou = -1.0 + 2.0*t4;
-    ro += 0.03 //weight
-                *sin(time*12.0+vec3(0.0,2.0,4.0))*smoothstep( 0.85, 1.0, abs(bou) );
+        // camera	  
+        float forwardWave = sin(0.5*time);
+        float smoothForward = 0.7*(-1.
+                                                +time*1.0 - 0.4*forwardWave); //虽然依旧是线性前进但是有个动态的微小波动更显真实
+        
+        //冲突1 ： 我不知道为什么无法调到正面的视图，重改了一下（SU）
+        // 10.0应该是角度更广的意思
+        ////////////////////////****V2.0***********************///////////////////
+        //float rotx = 2.5 + (iMouse.y / iResolution.y)*4.0;
+        //float roty = 2.5 + (iMouse.x / iResolution.x)*4.0;
+        //vec3  ta = vec3( 0.0, 0.65, smoothForward);
+        //float zoom = 1.0;
+        //vec3  ro = ta + zoom*normalize(vec3(cos(roty), cos(rotx), sin(roty))); 
+        ///////////////////////****************************//////////////////////
+        
+        float an_x = 10.*iMouse.x/iResolution.x;
+        float an_y = 10.*iMouse.y/iResolution.y;
+    vec3  ta = vec3( 0.0, 0.65, smoothForward);
+        vec3  ro = ta + vec3( 1.5*cos(an_x), 1.5*cos(an_y), 1.5*sin(an_x) ); 
+        
+        // camera bounce
+        float t4 = abs(fract(time*0.5)-0.5)/0.5;
+        float bou = -1.0 + 2.0*t4;
+        ro += 0.03 //weight
+                    *sin(time*12.0+vec3(0.0,2.0,4.0))*smoothstep( 0.85, 1.0, abs(bou) );
 
-    // 相机方向的变换矩阵
-	vec3 cw = normalize(ta-ro); //(lookatPoint - original) 相机方向向量：前向向量
-	vec3 cp = vec3(0.0, 1.0,0.0); 
-	vec3 cu = normalize( cross(cw,cp) ); // 利用cp求出向右的向量
-	vec3 cv =          ( cross(cu,cw) ); //反推回真正的向上的向量
+        // 相机方向的变换矩阵
+        vec3 cw = normalize(ta-ro); //(lookatPoint - original) 相机方向向量：前向向量
+        vec3 cp = vec3(0.0, 1.0,0.0); 
+        vec3 cu = normalize( cross(cw,cp) ); // 利用cp求出向右的向量
+        vec3 cv =          ( cross(cu,cw) ); //反推回真正的向上的向量
 
-    //得到最终的相机方向
-    vec3 rd = normalize( p.x*cu + p.y*cv + 1.8*cw ); //得到可以移动的
+        //得到最终的相机方向
+        vec3 rd = normalize( p.x*cu + p.y*cv + 1.8*cw ); //得到可以移动的
 
-    vec3 col = render( ro, rd, time, uv );
+        vec3 col = render( ro, rd, time, uv );
 
-    col = pow( col, vec3(0.4545) ); //加强颜色效果
+        col = pow( col, vec3(0.4545) ); //加强颜色效果
 
-    fragColor = vec4( col, 1.0 );
+        tot += col;
+    #if AA>1
+        }
+        tot /= float(AA*AA);
+#endif
+
+    fragColor = vec4( tot, 1.0 );
 }
