@@ -5,7 +5,7 @@
 // #endif
 
 // parmas
-struct Material
+struct Material    
 {
     vec3 	diffuseAlbedo;
     vec3 	specularAlbedo;
