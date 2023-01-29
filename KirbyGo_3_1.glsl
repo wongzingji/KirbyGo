@@ -5,7 +5,7 @@
 // #endif
 
 // parmas
-struct Material
+struct Material    
 {
     vec3 	diffuseAlbedo;
     vec3 	specularAlbedo;
@@ -692,7 +692,7 @@ vec4 map( in vec3 pos, float atime )
     vec3 vp = vec3( fract(qos.x+0.5)-0.5,qos.y,fract(qos.z+0.5)-0.5);
     vp.xz += 0.1*cos( id.x*130.143 + id.y*120.372 + vec2(0.0,2.0) );
     
-    float den = sin(id.x*0.1+sin(id.y*0.091))+sin(id.y*0.1);
+    float den = sin(id.x*1.2+sin(id.y*2.91))+sin(id.y*1.1);
     float fid = id.x*0.143 + id.y*0.372;
     float ra = smoothstep(0.0,0.1,den*0.1+fract(fid)-0.9);
     
