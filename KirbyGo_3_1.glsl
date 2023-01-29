@@ -1,3 +1,18 @@
+// -------------------------------Copyright Declaration------------------------------
+// This project is strongly based on Inigo Quilez's project Happing Jumping
+// https://www.shadertoy.com/view/3lsSzf
+
+//---------------------------------------NOTICE--------------------------------------
+// To see waterfall texture, you would have to load custom textures using console
+// by executing the 2 following lines
+// gShaderToy.SetTexture(1, {mSrc:'https://dl.dropboxusercontent.com/s/0s7mrlje6xgl0kr/displacement.png?dl=0', mType:'texture', mID:1, mSampler:{ filter: 'mipmap', wrap: 'repeat', vflip:'true', srgb:'false', internal:'byte' }});
+// gShaderToy.SetTexture(0, {mSrc:'https://dl.dropboxusercontent.com/s/bqrco6zi2yl6x5i/uniformclouds.png?dl=0', mType:'texture', mID:1, mSampler:{ filter: 'mipmap', wrap: 'repeat', vflip:'true', srgb:'false', internal:'byte' }});
+
+// AND: waterfall is set at z=-20.0, so as Kirby jumps forward, waterfall does disappear
+//---------------------------------------NOTICE--------------------------------------
+
+// github: https://github.com/wongzingji/KirbyGo
+
 // #if HW_PERFORMANCE==0
 // #define AA 1
 // #else
@@ -1046,6 +1061,11 @@ vec3 render( in vec3 ro, in vec3 rd, float time, vec2 uv )
 
         col = col*lin;
 		col += sun_spe*vec3(8.10,6.00,4.20)*sun_sha;
+        // toon shading: uncomment to see result
+        //float param = 0.1;
+        //float sun_dif_toon = floor(sun_dif/param);
+        //col *= sun_dif_toon*param;
+        //col += 0.1;    // brightness adjustment
         if (res.y>0.5 && res.y<1.5)
         {
             col += lin * bubble_mat.specularAlbedo * pow(max(0.0, dot(reflect(sun_lig,nor),rd)), 4.0);
