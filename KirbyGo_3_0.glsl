@@ -1,7 +1,7 @@
 // #if HW_PERFORMANCE==0
 // #define AA 1
 // #else
-#define AA 2  // Set AA to 1 if your machine is too slow
+#define AA 1  // Set AA to 1 if your machine is too slow
 // #endif
 
 // parmas
