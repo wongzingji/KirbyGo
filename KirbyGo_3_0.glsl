@@ -11,7 +11,7 @@ struct Material
     vec3 	specularAlbedo;
     float 	specularPower;
 };
-Material stem_mat = Material(vec3(0.8196, 0.3922, 0.2078), vec3(0.3), 8.0);
+// Material stem_mat = Material(vec3(0.8196, 0.3922, 0.2078), vec3(0.3), 8.0);
 Material bubble_mat = Material(vec3(0.7529, 0.4824, 0.6039), vec3(0.3), 8.0);
 
 // cloud params
@@ -28,8 +28,9 @@ const vec4 innerColor = vec4(0.7, 0.7, 0.7, _Density);
 const vec4 outerColor = vec4(1.0, 1.0, 1.0, 0.0);
 
 
-//utils
+// utils
 // Smooth Min
+// https://iquilezles.org/articles/smin
 float smin( float a, float b, float k )
 {
     float h = max(k-abs(a-b),0.0);
@@ -42,7 +43,7 @@ vec2 smin( vec2 a, vec2 b, float k )
     return mix( b, a, h ) - k*h*(1.0-h);
 }
 
-//Smooth Max ; 实现缺口
+// Smooth Max
 float smax( float a, float b, float k )
 {
     float h = max(k-abs(a-b),0.0);
@@ -62,21 +63,19 @@ mat2 rotMat(float rot)
 }
 
 ///////////////////////////////////
-//sdf
-// 圆角长方体
+// SDFs
+// https://iquilezles.org/articles/distfunctions
 float sdRoundBox( vec3 p, vec3 b, float r )
 {
   vec3 q = abs(p) - b;
   return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0) - r;
 }
 
-//球
 float sdSphere( vec3 p, float s )
 {
     return length(p)-s;
 }
 
-//椭圆
 float sdEllipsoid( in vec3 p, in vec3 r )
 {
     float k0 = length(p/r);
@@ -84,7 +83,6 @@ float sdEllipsoid( in vec3 p, in vec3 r )
     return k0*(k0-1.0)/k1;
 }
 
-//棍
 vec2 sdStick(vec3 p, vec3 a, vec3 b, float r1, float r2)
 {
     vec3 pa = p-a, ba = b-a;
@@ -99,7 +97,7 @@ vec2 sdSegment( in vec3 p, vec3 a, vec3 b )
 	return vec2( length( pa - ba*h ), h );
 }
 
-//Donuts
+// Donuts
 float sdTorus(vec3 p, vec2 t) {
   vec2 q = vec2(length(p.xz)-t.x,p.y);
   return length(q)-t.y;
@@ -127,6 +125,18 @@ float sdCream(vec3 p, float rad) {
 
 ////////////////////////////////
 // noise
+
+// Description : Array and textureless GLSL 2D/3D/4D simplex 
+//               noise functions.
+//      Author : Ian McEwan, Ashima Arts.
+//  Maintainer : stegu
+//     Lastmod : 20201014 (stegu)
+//     License : Copyright (C) 2011 Ashima Arts. All rights reserved.
+//               Distributed under the MIT License. See LICENSE file.
+//               https://github.com/ashima/webgl-noise
+//               https://github.com/stegu/webgl-noise
+// 
+
 vec3 mod289(vec3 x) {
   return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
@@ -139,6 +149,7 @@ vec4 permute(vec4 x) {
      return mod289(((x*34.0)+10.0)*x);
      //return mod289(((x*34.0)+1.0)*x);
 }
+
 // 2D
 vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -267,36 +278,36 @@ float psrdnoise(vec2 x, vec2 period, float alpha, out vec2 gradient)
 	return 10.9*n;
 }
 
-//----
 
-float snoise(vec2 v) {
-    const vec4 C = vec4(0.211324865405187,  // (3.0-sqrt(3.0))/6.0
-                        0.366025403784439,  // 0.5*(sqrt(3.0)-1.0)
-                        -0.577350269189626,  // -1.0 + 2.0 * C.x
-                        0.024390243902439); // 1.0 / 41.0
-    vec2 i  = floor(v + dot(v, C.yy) );
-    vec2 x0 = v -   i + dot(i, C.xx);
-    vec2 i1;
-    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = mod289(i); // Avoid truncation effects in permutation
-    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
-        + i.x + vec3(0.0, i1.x, 1.0 ));
 
-    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-    m = m*m ;
-    m = m*m ;
-    vec3 x = 2.0 * fract(p * C.www) - 1.0;
-    vec3 h = abs(x) - 0.5;
-    vec3 ox = floor(x + 0.5);
-    vec3 a0 = x - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
-    vec3 g;
-    g.x  = a0.x  * x0.x  + h.x  * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-    return 130.0 * dot(m, g);
-}
+// float snoise(vec2 v) {
+//     const vec4 C = vec4(0.211324865405187,  // (3.0-sqrt(3.0))/6.0
+//                         0.366025403784439,  // 0.5*(sqrt(3.0)-1.0)
+//                         -0.577350269189626,  // -1.0 + 2.0 * C.x
+//                         0.024390243902439); // 1.0 / 41.0
+//     vec2 i  = floor(v + dot(v, C.yy) );
+//     vec2 x0 = v -   i + dot(i, C.xx);
+//     vec2 i1;
+//     i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+//     vec4 x12 = x0.xyxy + C.xxzz;
+//     x12.xy -= i1;
+//     i = mod289(i); // Avoid truncation effects in permutation
+//     vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+//         + i.x + vec3(0.0, i1.x, 1.0 ));
+
+//     vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+//     m = m*m ;
+//     m = m*m ;
+//     vec3 x = 2.0 * fract(p * C.www) - 1.0;
+//     vec3 h = abs(x) - 0.5;
+//     vec3 ox = floor(x + 0.5);
+//     vec3 a0 = x - ox;
+//     m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+//     vec3 g;
+//     g.x  = a0.x  * x0.x  + h.x  * x0.y;
+//     g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+//     return 130.0 * dot(m, g);
+// }
 
 vec3 hsv2rgb( float h, float s, float v )
 {
@@ -311,11 +322,11 @@ vec3 hsv2rgb( float h, float s, float v )
 	) * v;
 }
 
-float random (in vec2 _st) {
+float random(in vec2 _st) {
     return fract(sin(dot(_st.xy,vec2(12.9898,78.633)))*43758.5453123);
 }
 
-float noise (in vec2 _st) {
+float noise(in vec2 _st) {
     vec2 i = floor(_st);
     vec2 f = fract(_st);
     float a = random(i);
@@ -330,7 +341,8 @@ float noise (in vec2 _st) {
             (d - b) * u.x * u.y;
 }
 
-float fbm ( in vec2 _st) {
+// FBM (2D)
+float fbm(in vec2 _st) {
     float v = 0.0;
     float a = 0.5;
     vec2 shift = vec2(100.0);
@@ -345,6 +357,7 @@ float fbm ( in vec2 _st) {
     return v;
 }
 
+// FBM (3D)
 float fbm(vec3 p)
 {
     float f;
@@ -428,7 +441,6 @@ float head( in vec3 p )
 
     // substract
     return smax( d3, -d4, 0.02 );
-    //return d3;
 }
 
 vec4 mapMushroom(vec3 p)
@@ -456,8 +468,6 @@ vec4 mapMushroom(vec3 p)
     vec4 res2 = vec4(d2, 7.0, objXY);
 
     // mix head and stem
-    //d1 = smin( d1, d3, 0.2 );
-    //d1 *= 0.75; 
     res = opU(res2, res);
         
     return res;
@@ -533,17 +543,18 @@ float sdCloud(vec3 p)
 	float d = length(q) - _SphereRadius;	// distance to sphere
 
 	// offset distance with noise
-	//p = normalize(p) * _SphereRadius;	// project noise point to sphere surface
+	// p = normalize(p) * _SphereRadius;	// project noise point to sphere surface
 	p.y -= iTime*0.3;	// animate noise with time
 	d += fbm(p*_NoiseFreq) * _NoiseAmp;
 	return d;
 }
 
+////////////////////////////////
 #define ZERO (min(iFrame,0))
 ////////////////////////////////
 //绘制物体
 //修改：增加了返回相对坐标(x,y)以用来渲染颜色 
-//OLD:vec2->NEW:vec4
+//OLD: vec2->NEW:vec4
 vec4 map( in vec3 pos, float atime )
 {
     //Defalut return value
@@ -558,7 +569,7 @@ vec4 map( in vec3 pos, float atime )
     //zMove
     float zMove = 0.7*(floor(atime) + pow(t,0.7) -1.0) ; //非线性的smooth移动
         
-     //xMove
+    //xMove
     float tt = abs(fract(atime*0.5)-0.5)/0.5;
     float xMove = 0.5*(-1.0 + 2.0*tt);
      
@@ -572,8 +583,7 @@ vec4 map( in vec3 pos, float atime )
     float bodyMove = 0.5*(-1.0 + 2.0*ttt);
     basic.xz = rotMat(bodyMove*1.) * basic.xz;
     
-    vec3 symmBody =  vec3(  abs(basic.x), basic.yz);
- 
+    vec3 symmBody =  vec3(  abs(basic.x), basic.yz); 
     
     //body: 尝试了形变效果，Q弹效果
     float sy = 0.9 + 0.1*bounceWave;
@@ -624,8 +634,7 @@ vec4 map( in vec3 pos, float atime )
     vec4 legObj = vec4(dleg, 3.0,objXY);
     
     res = opU(res, legObj);
-    }
-    
+    }   
     
     //eye
     vec3 eyePos = vec3(0.06, 0.05, 0.19-2.*basic.y*basic.y);
@@ -638,8 +647,7 @@ vec4 map( in vec3 pos, float atime )
     
     float dEye = sdEllipsoid( eyePos, vec3(0.15, 0.3*sss+0.001, 0.03*sss+0.001)*0.2 );
     vec4 eyeObj = vec4(dEye, 4.0, eyePos.xy);
-    res = opU(res, eyeObj);
-    
+    res = opU(res, eyeObj);    
     
     // ground
     vec2 floorData = sdFloor(pos, atime);
@@ -647,26 +655,24 @@ vec4 map( in vec3 pos, float atime )
     float dFloor = floorData.y;
     vec2 floorObj = vec2(dFloor, 0.0);
     
-    // bubbles
-    
+    // bubbles   
     vec3 bubbleArea = vec3( mod(abs(pos.x),3.0),pos.y,mod(pos.z+1.5,3.0)-1.5);
-        //随机生成
+    //随机生成
     vec2 id = vec2( floor(pos.x/3.0), floor((pos.z+1.5)/3.0) );
     float fid = id.x*11.1 + id.y*31.7;
-        //飘起来的效果
+    //飘起来的效果
     float fy = fract(fid*1.312+atime*0.1);
     float y = -1.0+4.0*fy;
     
     vec3  rad = vec3(0.7,1.0+0.5*sin(fid),0.7);
     rad -= 0.1*(sin(pos.x*3.0)+sin(pos.y*4.0)+sin(pos.z*5.0));    
     
-        //smoothly  change the size when fly
-   float siz = 4.0*fy*(1.0-fy);
+    //smoothly  change the size when fly
+    float siz = 4.0*fy*(1.0-fy);
     float dTree = sdEllipsoid( bubbleArea-vec3(2.0,y,0.0), rad*siz );
-        //添加突出效果
+    //添加突出效果
     float bubbleTexture = 0.2*(-1.0+2.0*smoothstep(-0.2,0.2, sin(18.0*pos.x)+sin(18.0*pos.y)+sin(18.0*pos.z))); 
     //dTree += 0.01 * bubbleTexture;
-
     
     dTree *= 0.6;
     dTree = min(dTree,2.0);
@@ -760,11 +766,8 @@ vec4 castRay( in vec3 ro, in vec3 rd, float time )
     return res;
 }
 
-
-//归一化函数
 vec3 calcNormal( in vec3 pos, float time )
 {
-
     // vec2 e = vec2(0.0005,0.0);
     // return normalize( vec3( 
     //     map( pos + e.xyy, time ).x - map( pos - e.xyy, time ).x,
@@ -779,7 +782,6 @@ vec3 calcNormal( in vec3 pos, float time )
     }
     return normalize(n);    
 }
-
 
 float calcOcclusion( in vec3 pos, in vec3 nor, float time )
 {
@@ -864,11 +866,11 @@ vec4 castRayVolume(vec3 rayOrigin, vec3 rayStep, vec4 sum, out vec3 pos)
 		
 #if 0
 		// exit early if opaque
-        	if (sum.a > _OpacityThreshold)
-            		break;
+        if (sum.a > _OpacityThreshold)
+                break;
 #endif		
 		pos += rayStep;
-		//rayStep *= 1.01;
+		// rayStep *= 1.01;
 	}
 	return sum;
 }
@@ -1063,19 +1065,18 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     for( int m=ZERO; m<AA; m++ )
     for( int n=ZERO; n<AA; n++ )
     {
-        //转换坐标，实现1. 位于中心 2.比例与画布长宽相同
-        vec2 o = vec2(float(m),float(n)) / float(AA) - 0.5;
+        // 转换坐标，实现1. 位于中心 2.比例与画布长宽相同
+        vec2 o = vec2(float(m),float(n)) / float(AA) - 0.5; // offset 
         vec2 p = (-iResolution.xy + 2.0*(fragCoord+o))/iResolution.y;
         vec2 uv = (fragCoord+o)/min(iResolution.x, iResolution.y);
         float d = 0.5+0.5*sin(fragCoord.x*147.0)*sin(fragCoord.y*131.0);
         float time = iTime - 0.5*(1.0/24.0)*(float(m*AA+n)+d)/float(AA*AA);;
 #else
-        //转换坐标，实现1. 位于中心 2.比例与画布长宽相同
         vec2 p = (-iResolution.xy + 2.0*fragCoord)/iResolution.y;
         vec2 uv = fragCoord/min(iResolution.x, iResolution.y);
         float time = iTime;
 #endif
-        //float time = 1.;
+        // float time = 1.;
         time *= 0.7;
 
         // camera	  
@@ -1083,19 +1084,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         float smoothForward = 0.7*(-1.
                                                 +time*1.0 - 0.4*forwardWave); //虽然依旧是线性前进但是有个动态的微小波动更显真实
         
-        //冲突1 ： 我不知道为什么无法调到正面的视图，重改了一下（SU）
-        // 10.0应该是角度更广的意思
-        ////////////////////////****V2.0***********************///////////////////
-        //float rotx = 2.5 + (iMouse.y / iResolution.y)*4.0;
-        //float roty = 2.5 + (iMouse.x / iResolution.x)*4.0;
-        //vec3  ta = vec3( 0.0, 0.65, smoothForward);
-        //float zoom = 1.0;
-        //vec3  ro = ta + zoom*normalize(vec3(cos(roty), cos(rotx), sin(roty))); 
-        ///////////////////////****************************//////////////////////
-        
+        // mouse control
         float an_x = 10.*iMouse.x/iResolution.x;
         float an_y = 10.*iMouse.y/iResolution.y;
-    vec3  ta = vec3( 0.0, 0.65, smoothForward);
+        vec3  ta = vec3( 0.0, 0.65, smoothForward);
         vec3  ro = ta + vec3( 1.5*cos(an_x), 1.5*cos(an_y), 1.5*sin(an_x) ); 
         
         // camera bounce
@@ -1104,13 +1096,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         ro += 0.03 //weight
                     *sin(time*12.0+vec3(0.0,2.0,4.0))*smoothstep( 0.85, 1.0, abs(bou) );
 
-        // 相机方向的变换矩阵
+        // set camera 相机方向的变换矩阵
         vec3 cw = normalize(ta-ro); //(lookatPoint - original) 相机方向向量：前向向量
         vec3 cp = vec3(0.0, 1.0,0.0); 
         vec3 cu = normalize( cross(cw,cp) ); // 利用cp求出向右的向量
         vec3 cv =          ( cross(cu,cw) ); //反推回真正的向上的向量
 
-        //得到最终的相机方向
+        // 得到最终的相机方向
         vec3 rd = normalize( p.x*cu + p.y*cv + 1.8*cw ); //得到可以移动的
 
         vec3 col = render( ro, rd, time, uv );
