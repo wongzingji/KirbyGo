@@ -689,9 +689,8 @@ vec3 render( in vec3 ro, in vec3 rd, float time, vec2 uv )
             lin += (1.0 - t) * calcTransmittance(pos+nor*vec3(0.01), rd, 0.01, 10.0, 0.5, time);
         }
 
-        col = col*lin;
+        //col = col*lin;
         
-        // toon shading effect
         if (sun_dif < 0.256) {
             col *= 0.25; // 0.195
         } else if (sun_dif < 0.59) {
